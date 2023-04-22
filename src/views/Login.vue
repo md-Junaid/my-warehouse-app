@@ -97,7 +97,6 @@ export default {
           createUserWithEmailAndPassword(this.auth, this.email, this.password)
           .then((userCredential) => {
             const user = userCredential.user
-            console.log('user logged in: ', user)
             const docRef = doc(this.db, `users/${user.uid}`)
             setDoc(docRef, {
               name: this.name,

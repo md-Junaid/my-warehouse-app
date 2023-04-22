@@ -55,7 +55,11 @@
         :items-per-page="5"
         :loading="loading"
         class="elevation-20 pa-4 rounded-xl mt-6"
-      ></v-data-table>
+      >
+        <template slot="no-data">
+          <p class="title">Sorry Nothing to display here, contact your admin :(</p>
+        </template>
+      </v-data-table>
     </div>
     <v-dialog
       v-model="dialog"
@@ -125,7 +129,6 @@ import UserInfoDialog from '../components/UserInfoDialog'
       getAuth().onAuthStateChanged((user) => {
         this.$store.commit("updateUser", user)
         if(user) {
-          this.loading=true
           this.$store.dispatch("getCurrentUser")
         }
       })
@@ -142,7 +145,8 @@ import UserInfoDialog from '../components/UserInfoDialog'
         'getUserItems',
         'getUserItemsHeader',
         'getSelectedUserItems',
-        'getSelectedUserItemsHeaders'
+        'getSelectedUserItemsHeaders',
+        'getLoading'
       ]),
     },
 
@@ -164,7 +168,6 @@ import UserInfoDialog from '../components/UserInfoDialog'
       },
       getUserItems(newValue) {
         this.userItems = newValue
-        this.loading = false
       },
       selectedUser(newValue) {
         if(newValue.id === getAuth().currentUser.uid) {
@@ -178,11 +181,11 @@ import UserInfoDialog from '../components/UserInfoDialog'
           })
           return
         }
-        this.loading = true
+        this.headers=[]
+        this.userItems=[]
         this.$store.dispatch("getUserItems", newValue.email)
       },
       getSelectedUserItemsHeaders(newValue) {
-        this.headers=[]
         newValue.forEach((header) => {
           this.headers.push({
             text: header,
@@ -192,8 +195,10 @@ import UserInfoDialog from '../components/UserInfoDialog'
       },
       getSelectedUserItems(newValue) {
         this.userItems = newValue
-        this.loading = false
       },
+      getLoading(newValue) {
+        this.loading=newValue
+      }
     },
 
     methods: {

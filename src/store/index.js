@@ -22,7 +22,8 @@ export default new Vuex.Store({
     selectedUserItems: [],
     selectedUserItemsHeaders: [],
     uploadMessage: "",
-    enableUpload: true
+    enableUpload: true,
+    loading: false
   },
   getters: {
     getUserName: state => {
@@ -54,6 +55,9 @@ export default new Vuex.Store({
     },
     getSelectedUserItemsHeaders: state => {
       return state.selectedUserItemsHeaders
+    },
+    getLoading: state => {
+      return state.loading
     }
   },
   mutations: {
@@ -93,11 +97,15 @@ export default new Vuex.Store({
     },
     mutateSelectedUserItemsHeaders(state, value) {
       state.selectedUserItemsHeaders = value
+    },
+    mutateLoading(state, value) {
+      state.loading = value
     }
   },
 
   actions: {
     async getCurrentUser({ commit }) {
+      commit("mutateLoading", true)
       const dataBase = await doc(getFirestore(), `users/${getAuth().currentUser.uid}`)
       const dbResults = await getDoc(dataBase)
       const admin = dbResults.data().admin
@@ -124,17 +132,24 @@ export default new Vuex.Store({
       const dataBase = await doc(getFirestore(), `customerData/${getAuth().currentUser.email}`)
       const dbResults = await getDoc(dataBase)
 
-      commit("mutateUserItems", dbResults.data().items)
-      commit("mutateUserItemsHeaders", Object.keys(dbResults.data().items[0]))
+      if(dbResults.data()) {
+        commit("mutateUserItems", dbResults.data().items)
+        commit("mutateUserItemsHeaders", Object.keys(dbResults.data().items[0]))
+      }
+      commit("mutateLoading", false)
     },
 
     // Whenever admin selects the user, the table for that specific user loads
     async getUserItems({ commit }, user) {
+      commit("mutateLoading", true)
       const dataBase = await doc(getFirestore(), `customerData/${user}`)
       const dbResults = await getDoc(dataBase)
 
-      commit("mutateSelectedUserItems", dbResults.data().items)
-      commit("mutateSelectedUserItemsHeaders", Object.keys(dbResults.data().items[0]))
+      if (dbResults.data()) {
+        commit("mutateSelectedUserItems", dbResults.data().items)
+        commit("mutateSelectedUserItemsHeaders", Object.keys(dbResults.data().items[0]))
+      }
+      commit("mutateLoading", false)
     },
 
     async uploadAllDocsUser({ commit }, data) {
