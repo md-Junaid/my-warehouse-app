@@ -131,7 +131,6 @@ import { getFirestore, doc, updateDoc } from 'firebase/firestore'
 
         this.loading = false
         this.$emit("close")
-        this.$router.go()
       },
     }
   }

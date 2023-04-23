@@ -4,13 +4,13 @@ import Vuex from 'vuex'
 import { 
   getAuth
 } from '@firebase/auth';
-import { getFirestore, FieldValue, doc, getDoc, query, getDocs, collection, setDoc } from 'firebase/firestore'
+import { getFirestore, FieldValue, doc, getDoc, query, getDocs, collection,
+  setDoc } from 'firebase/firestore'
 
 Vue.use(Vuex)
 
 export default new Vuex.Store({
   state: {
-    user: null,
     userUID: null,
     userEmail: null,
     userName: null,
@@ -18,12 +18,13 @@ export default new Vuex.Store({
     userAdmin: false,
     userItems: [],
     userItemsHeader: [],
+    unsubscribeItemsListener: null,
     allUsers: [],
     selectedUserItems: [],
     selectedUserItemsHeaders: [],
     uploadMessage: "",
-    enableUpload: true,
-    loading: false
+    loading: false,
+    loadingUpload: false
   },
   getters: {
     getUserName: state => {
@@ -41,9 +42,6 @@ export default new Vuex.Store({
     getUploadMessage: state => {
       return state.uploadMessage
     },
-    getEnableUpload: state => {
-      return state.enableUpload
-    },
     getUserItems: state => {
       return state.userItems
     },
@@ -58,12 +56,15 @@ export default new Vuex.Store({
     },
     getLoading: state => {
       return state.loading
+    },
+    getUnsubscribeItemsListener: state => {
+      return state.unsubscribeItemsListener
+    },
+    getLoadingUpload: state => {
+      return state.loadingUpload
     }
   },
   mutations: {
-    updateUser(state, payload) {
-      state.user = payload
-    },
     setProfileInfo(state, doc) {
       state.userUID = doc.id
       state.userEmail = doc.data().email
@@ -83,9 +84,6 @@ export default new Vuex.Store({
     mutateUploadMessage(state, message) {
       state.uploadMessage = message
     },
-    mutateEnableUpload(state, value) {
-      state.uploadComplete = value
-    },
     mutateUserItems(state, value) {
       state.userItems = value
     },
@@ -100,45 +98,16 @@ export default new Vuex.Store({
     },
     mutateLoading(state, value) {
       state.loading = value
+    },
+    mutateunsubscribeItemsListener(state, value) {
+      state.unsubscribeItemsListener = value
+    },
+    mutateLoadingUpload(state, value) {
+      state.loadingUpload = value
     }
   },
 
   actions: {
-    async getCurrentUser({ commit }) {
-      commit("mutateLoading", true)
-      const dataBase = await doc(getFirestore(), `users/${getAuth().currentUser.uid}`)
-      const dbResults = await getDoc(dataBase)
-      const admin = dbResults.data().admin
-      
-      if (admin && admin===true) {
-        this.dispatch("getAllUsers")
-      }
-
-      this.dispatch("getMyItems")
-      commit("setProfileInfo", dbResults)
-    },
-
-    async getAllUsers({ commit }) {
-      const customUsersQuery = query(
-        collection(getFirestore(), 'users')
-      )
-
-      const userQuerySnapshot = await getDocs(customUsersQuery)
-      commit("mutateAllUsers", userQuerySnapshot)
-    },
-
-    async getMyItems({ commit }) {
-      // get table items to display on homepage
-      const dataBase = await doc(getFirestore(), `customerData/${getAuth().currentUser.email}`)
-      const dbResults = await getDoc(dataBase)
-
-      if(dbResults.data()) {
-        commit("mutateUserItems", dbResults.data().items)
-        commit("mutateUserItemsHeaders", Object.keys(dbResults.data().items[0]))
-      }
-      commit("mutateLoading", false)
-    },
-
     // Whenever admin selects the user, the table for that specific user loads
     async getUserItems({ commit }, user) {
       commit("mutateLoading", true)
@@ -153,8 +122,7 @@ export default new Vuex.Store({
     },
 
     async uploadAllDocsUser({ commit }, data) {
-      commit("mutateEnableUpload", false)
-
+      commit("mutateLoadingUpload", true)
       // Check if the current user is admin
       const userdb = await doc(getFirestore(), `users/${getAuth().currentUser.uid}`)
       const dbResults = await getDoc(userdb)
@@ -165,16 +133,15 @@ export default new Vuex.Store({
         const dataBase = await doc(getFirestore(), `customerData/${data.email}`)
         setDoc(dataBase, data)
           .then(() => {
-            commit("mutateUploadMessage", 'Upload csv complete')
-            commit("mutateEnableUpload", true)
+            commit("mutateUploadMessage", 'Upload csv complete!! Refresh page to see changes.')
+            commit("mutateLoadingUpload", false)
           })
           .catch((error) => {
             commit("mutateUploadMessage", `Error! ${error}`)
-            commit("mutateEnableUpload", true)
+            commit("mutateLoadingUpload", false)
           })
       } else {
         commit("mutateUploadMessage", 'You are not admin!!')
-        commit("mutateEnableUpload", true)
       }
     }
   },

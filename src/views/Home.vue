@@ -36,8 +36,7 @@
               color="#C850C0" 
               @click="openUploadDialog()" 
               :style="{color: '#fff'}"
-              :disabled="!enableUpload"
-              :loading="loading"
+              :loading="loading || loadingUpload"
             >
                 Upload data
               </v-btn>
@@ -102,23 +101,27 @@
 
 <script>
 import { getAuth, signOut } from 'firebase/auth'
+import { getFirestore, FieldValue, doc, onSnapshot, query, collection, getDoc } from 'firebase/firestore'
 import { mapGetters } from 'vuex'
 import papa from 'papaparse'
 import UserInfoDialog from '../components/UserInfoDialog'
+
+  let unsubscribeItems;
+  let unsubscribeUser;
+  let unsubscribeAllUsers;
 
   export default {
     name: 'Home',
 
     data: () => ({
-      enableUpload: true,
       loading: false,
       csv: null,
-      csvData: [],
       dialog: false,
       userInfoDialog: false,
       selectedUser: {},
       headers: [],
       userItems: [],
+      loadingUpload: false
     }),
 
     components: {
@@ -126,10 +129,19 @@ import UserInfoDialog from '../components/UserInfoDialog'
     },
     
     created() {
-      getAuth().onAuthStateChanged((user) => {
-        this.$store.commit("updateUser", user)
+      getAuth().onAuthStateChanged(async (user) => {
         if(user) {
-          this.$store.dispatch("getCurrentUser")
+          this.$store.commit("mutateLoading", true)
+          const dataBase = await doc(getFirestore(), `users/${getAuth().currentUser.uid}`)
+
+
+          unsubscribeUser = onSnapshot(dataBase, (doc) => {
+            if(doc.exists()) {
+              this.$store.commit("setProfileInfo", doc)
+            }
+          })
+          this.getMyItems()
+          this.getAllUsersForAdmin()
         }
       })
     },
@@ -140,20 +152,18 @@ import UserInfoDialog from '../components/UserInfoDialog'
         'getUserEmail',
         'getUserAdmin',
         'getAllUsers',
-        'getEnableUpload',
         'getUploadMessage',
         'getUserItems',
         'getUserItemsHeader',
         'getSelectedUserItems',
         'getSelectedUserItemsHeaders',
-        'getLoading'
+        'getLoading',
+        'getUnsubscribeItemsListener',
+        'getLoadingUpload'
       ]),
     },
 
     watch: {
-      getEnableUpload(newValue) {
-        this.enableUpload = newValue
-      },
       getUploadMessage(newValue) {
         alert(newValue)
       },
@@ -198,6 +208,20 @@ import UserInfoDialog from '../components/UserInfoDialog'
       },
       getLoading(newValue) {
         this.loading=newValue
+      },
+      getLoadingUpload(newValue) {
+        this.loadingUpload=newValue
+      },
+      getUnsubscribeItemsListener(newValue) {
+        this.unsubscribeItems=newValue
+      }
+    },
+
+    beforeDestroy() {
+      unsubscribeUser()
+      unsubscribeItems()
+      if(this.getUserAdmin===true) {
+        unsubscribeAllUsers()
       }
     },
 
@@ -208,6 +232,34 @@ import UserInfoDialog from '../components/UserInfoDialog'
         }).catch((error) => {
           alert(error.message)
         })
+      },
+
+      async getMyItems() {
+        const dataBase = await doc(getFirestore(), `customerData/${getAuth().currentUser.email}`)
+
+        unsubscribeItems = onSnapshot(dataBase, (doc) => {
+          if(doc.exists()) {
+            this.$store.commit("mutateUserItems", doc.data().items)
+            this.$store.commit("mutateUserItemsHeaders", Object.keys(doc.data().items[0]))
+          }
+        })
+
+        this.$store.commit("mutateLoading", false)
+      },
+
+      async getAllUsersForAdmin() {
+        const dataBase = await doc(getFirestore(), `users/${getAuth().currentUser.uid}`)
+        const dbresults = await getDoc(dataBase)
+        
+        if (dbresults.data().admin===true) {
+          const customUsersQuery = query(
+            collection(getFirestore(), 'users')
+          )
+
+          unsubscribeAllUsers = onSnapshot(customUsersQuery, (docs) => {
+            this.$store.commit("mutateAllUsers", docs)
+          })
+        }
       },
 
       openUploadDialog() {
@@ -226,7 +278,6 @@ import UserInfoDialog from '../components/UserInfoDialog'
         var that = this
         if (this.csv == undefined) {
           alert("Please select a csv file")
-          this.csvData = []
           return
         }
         papa.parse(this.csv, {
@@ -243,6 +294,7 @@ import UserInfoDialog from '../components/UserInfoDialog'
             }
             that.$store.dispatch("uploadAllDocsUser", data)
             that.dialog = false
+            that.csv = null
           }
         })
       },
